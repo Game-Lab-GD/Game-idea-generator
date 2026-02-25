@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Godot Studio Ultimate - AI Generator</title>
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;500;900&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        :root {
+            --godot-blue: #478cbf;
+            --bg-dark: #121418;
+            --panel: #21252b;
+            --accent: #5c6375;
+            --text: #abb2bf;
+            --white: #ffffff;
+            --success: #98c379;
+            --danger: #e06c75;
+            --warn: #e5c07b;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; outline: none; }
+
+        body {
+            font-family: 'Tajawal', sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        header {
+            background: var(--panel);
+            padding: 0 2rem;
+            height: 70px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom:1px solid #181a1f;
+            z-index: 10;
+        }
+
+        .header-left { display: flex; align-items: center; gap: 20px; }
+        .header-right { display: flex; align-items: center; gap: 10px; }
+
+        .logo { font-weight: 900; font-size: 1.3rem; color: var(--godot-blue); display: flex; align-items: center; gap: 10px; text-shadow: 0 0 10px rgba(71, 140, 191, 0.3); }
+
+        .control-group { display: flex; align-items: center; gap: 8px; }
+        .control-label { font-size: 0.75rem; color: #888; text-transform: uppercase; font-weight: bold; }
+        
+        select {
+            background: #181a1f;
+            color: var(--white);
+            border:1px solid #444;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-family: inherit;
+            cursor: pointer;
+        }
+        select:hover { border-color: var(--godot-blue); }
+
+        .nav-tabs {
+            display: flex; gap: 5px; background: #181a1f; padding: 4px; border-radius: 8px;
+        }
+
+        .tab-btn {
+            background: transparent; border: none; color: #6d7686;
+            padding: 8px 20px; cursor: pointer; border-radius: 6px;
+            font-family: inherit; font-weight: 600; transition: 0.3s;
+            display: flex; align-items: center; gap: 6px;
+        }
+        .tab-btn.active { background: var(--panel); color: var(--white); box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+
+        main { flex: 1; position: relative; overflow: hidden; }
+
+        .view-section {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            opacity: 0; visibility: hidden; transition: 0.3s; padding: 1rem 2rem;
+            overflow-y: auto; background: var(--bg-dark);
+        }
+        .view-section.active { opacity: 1; visibility: visible; z-index: 1; }
+
+        .generator-container { max-width: 1200px; margin: 0 auto; display: flex; flex-direction: column; gap: 1rem; height: 100%; }
+
+        .viewport-frame {
+            width: 100%; height: 60vh; background: #000; border-radius: 12px;
+            overflow: hidden; position: relative; border: 2px solid var(--accent);
+            box-shadow: 0 10px 40px rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center;
+        }
+
+        .ai-image { width: 100%; height: 100%; object-fit: cover; transition: opacity 0.5s ease; opacity: 0; }
+        .ai-image.visible { opacity: 1; }
+
+        /* Loading UI */
+        .loading-grid {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: 
+                linear-gradient(0deg, transparent 24%, rgba(71, 140, 191, .1) 25%, rgba(71, 140, 191, .1) 26%, transparent 27%, transparent 74%, rgba(71, 140, 191, .1) 75%, rgba(71, 140, 191, .1) 76%, transparent 77%, transparent), 
+                linear-gradient(90deg, transparent 24%, rgba(71, 140, 191, .1) 25%, rgba(71, 140, 191, .1) 26%, transparent 27%, transparent 74%, rgba(71, 140, 191, .1) 75%, rgba(71, 140, 191, .1) 76%, transparent 77%, transparent);
+            background-size: 30px 30px;
+            animation: moveGrid 2s linear infinite;
+            z-index: 2;
+            display: none;
+            pointer-events: none;
+        }
+        @keyframes moveGrid { 0% { background-position: 0 0; } 100% { background-position: 30px 30px; } }
+
+        .loading-status-corner {
+            position: absolute; bottom: 15px; left: 15px;
+            background: rgba(0,0,0,0.6); border-left: 2px solid var(--godot-blue);
+            padding: 5px 15px; color: var(--godot-blue);
+            font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; letter-spacing: 1px;
+            z-index: 3; display: none; backdrop-filter: blur(4px);
+        }
+
+        .loading-pulse {
+            position: absolute; width: 80px; height: 80px; border-radius: 50%;
+            background: radial-gradient(circle, rgba(71, 140, 191, 0.2) 0%, transparent 70%);
+            animation: pulse 1.5s infinite ease-in-out; z-index: 2; display: none;
+        }
+        @keyframes pulse { 0% { transform: scale(0.8); opacity: 0.5; } 100% { transform: scale(1.5); opacity: 0; } }
+
+        .concept-box {
+            background: var(--panel); padding: 1.5rem; border-radius: 12px;
+            text-align: center; border: 1px solid rgba(255,255,255,0.05);
+            margin-top: auto; margin-bottom: 10px;
+        }
+
+        .typewriter {
+            font-family: 'JetBrains Mono', monospace; font-size: 1.2rem; color: var(--white);
+            min-height: 50px; margin-bottom: 0.5rem; line-height: 1.6;
+        }
+        .cursor { display: inline-block; width: 3px; height: 1.2rem; background: var(--godot-blue); animation: blink 1s infinite; vertical-align: middle; }
+        @keyframes blink { 50% { opacity: 0; } }
+
+        .tags { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+        .tag { background: rgba(71, 140, 191, 0.15); color: var(--godot-blue); padding: 4px 10px; border-radius: 20px; font-size: 0.8rem; }
+
+        .controls-bar { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
+
+        .btn {
+            padding: 10px 20px; border-radius: 8px; border: none; cursor: pointer;
+            font-family: inherit; font-weight: 700; display: flex; align-items: center; gap: 10px;
+            font-size: 0.95rem; transition: 0.1s;
+        }
+        .btn:active { transform: scale(0.95); }
+
+        .btn-primary { background: var(--godot-blue); color: white; box-shadow: 0 4px 15px rgba(71, 140, 191, 0.4); }
+        .btn-primary:hover { filter: brightness(1.1); }
+        .btn-secondary { background: #333; color: #ddd; border: 1px solid #555; }
+        .btn-secondary:hover { background: #444; }
+        .btn-save { background: #2c313a; color: var(--text); border: 1px solid #444; }
+        .btn-save.saved { color: var(--danger); border-color: var(--danger); background: rgba(224, 108, 117, 0.1); }
+
+        /* Library View */
+        .library-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; max-width: 1400px; margin: 0 auto 20px; }
+        .library-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 25px; padding-bottom: 50px; max-width: 1400px; margin: 0 auto; }
+
+        .lib-card {
+            background: #181a1f; border-radius: 12px; overflow: hidden; position: relative;
+            transition: 0.3s; height: 400px; cursor: pointer; border: 1px solid #333;
+        }
+        .lib-card:hover { transform: translateY(-8px); border-color: var(--godot-blue); box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
+
+        .lib-img { width: 100%; height: 100%; object-fit: cover; background: #111; transition: transform 0.5s; }
+        .lib-card:hover .lib-img { transform: scale(1.05); }
+
+        .lib-overlay {
+            position: absolute; bottom: 0; left: 0; width: 100%;
+            background: linear-gradient(to top, rgba(0,0,0,0.95), rgba(0,0,0,0.6), transparent);
+            padding: 80px 20px 20px 20px; color: white; text-align: right;
+            display: flex; flex-direction: column; justify-content: flex-end;
+        }
+        .lib-title { font-weight: 900; font-size: 1.4rem; margin-bottom: 5px; color: var(--white); text-shadow: 0 2px 4px rgba(0,0,0,0.8); }
+        .lib-genre { font-size: 0.9rem; color: var(--godot-blue); font-weight: bold; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 1px; }
+        .lib-text { font-size: 0.9rem; color: #ccc; margin-bottom: 15px; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; text-shadow: 0 1px 2px rgba(0,0,0,0.8); }
+
+        .lib-actions { display: flex; gap: 10px; opacity: 0; transform: translateY(10px); transition: 0.3s; }
+        .lib-card:hover .lib-actions { opacity: 1; transform: translateY(0); }
+
+        .btn-sm { flex: 1; padding: 8px; font-size: 0.8rem; border-radius: 4px; border: none; cursor: pointer; color: white; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 5px; }
+        .btn-load { background: var(--godot-blue); }
+        .btn-load:hover { background: var(--white); color: var(--godot-blue); }
+        .btn-del { background: rgba(224, 108, 117, 0.8); backdrop-filter: blur(4px); }
+        .btn-del:hover { background: var(--danger); }
+        .btn-copy { background: rgba(229, 192, 123, 0.8); backdrop-filter: blur(4px); color: #333; }
+        .btn-copy:hover { background: var(--warn); }
+
+        /* Sound Button Visuals */
+        #sound-btn.active-sound { background: rgba(152, 195, 121, 0.2); border-color: var(--success); color: var(--success); }
+        #sound-btn { transition: 0.3s; }
+
+        /* Toast */
+        .toast {
+            position: fixed; top: 80px; left: 50%; transform: translateX(-50%);
+            background: var(--panel); border:1px solid var(--success); color: var(--success);
+            padding: 10px 30px; border-radius: 30px; box-shadow: 0 5px 20px rgba(0,0,0,0.5);
+            z-index: 100; display: flex; align-items: center; gap: 10px;
+            opacity: 0; pointer-events: none; transition: 0.3s;
+        }
+        .toast.show { opacity: 1; transform: translateX(-50%) translateY(10px); }
+
+        @media(max-width: 600px) {
+            .header-left { gap: 5px; } .nav-tabs { width: 100%; justify-content: space-between; } .control-group { display: none; } .viewport-frame { height: 40vh; } .library-grid { grid-template-columns: 1fr; } .lib-card { height: 350px; }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="header-left">
+            <div class="logo"><i class="fa-solid fa-gamepad"></i> GODOT GEN</div>
+            
+            <div class="control-group">
+                <span class="control-label">النمط الفني:</span>
+                <select id="style-selector">
+                    <option value="standard">قياسي (Realistic)</option>
+                    <option value="pixel art">Pixel Art</option>
+                    <option value="voxel style">Voxel Style</option>
+                    <option value="low poly 3d render">Low Poly 3D</option>
+                    <option value="cyberpunk neon">Cyberpunk</option>
+                    <option value="dark horror">Dark Horror</option>
+                    <option value="anime style">Anime</option>
+                    <option value="oil painting">Oil Painting</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="header-right">
+            <button id="sound-btn" class="btn-sm btn-secondary" onclick="toggleSound()" title="تشغيل الصوت">
+                <i class="fa-solid fa-volume-xmark"></i>
+            </button>
+            <button class="btn-sm btn-secondary" onclick="exportLibrary()" title="تصدير JSON">
+                <i class="fa-solid fa-file-export"></i>
+            </button>
+        </div>
+    </header>
+
+    <div style="background:var(--bg-dark); display:flex; justify-content:center; padding:10px 0; border-bottom:1px solid #333;">
+        <div class="nav-tabs">
+            <button class="tab-btn active" onclick="switchTab('generator')"><i class="fa-solid fa-wand-magic-sparkles"></i> المولد</button>
+            <button class="tab-btn" onclick="switchTab('library')"><i class="fa-solid fa-layer-group"></i> المكتبة <span id="lib-count" style="background:#444; padding:0 6px; border-radius:10px; font-size:0.7em">0</span></button>
+        </div>
+    </div>
+
+    <div class="toast" id="toast">
+        <i class="fa-solid fa-check-circle"></i>
+        <span id="toast-msg">تمت العملية</span>
+    </div>
+
+    <main>
+        <!-- View 1: Generator -->
+        <section id="view-generator" class="view-section active">
+            <div class="generator-container">
+                <div class="viewport-frame">
+                    
+                    <div class="loading-grid" id="loading-grid"></div>
+                    <div class="loading-pulse" id="loading-pulse"></div>
+                    <div class="loading-status-corner" id="loading-status">AI RENDERING...</div>
+                    
+                    <img src="" alt="Generated Concept" class="ai-image" id="main-image" onload="imageLoaded()">
+                </div>
+
+                <div class="concept-box">
+                    <div class="typewriter">
+                        <span id="typewriter-text"></span><span class="cursor"></span>
+                    </div>
+                    <div class="tags" id="tags-container"></div>
+                </div>
+
+                <div class="controls-bar">
+                    <button class="btn btn-save" id="save-btn" onclick="saveIdea()">
+                        <i class="fa-regular fa-heart"></i> حفظ
+                    </button>
+                    <button class="btn btn-secondary" onclick="copyImageLink()">
+                        <i class="fa-solid fa-link"></i> رابط الصورة
+                    </button>
+                    <button class="btn btn-primary" onclick="generate()">
+                        <i class="fa-solid fa-bolt"></i> توليد جديد
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- View 2: Library -->
+        <section id="view-library" class="view-section">
+            <div class="library-header">
+                <div class="control-group">
+                    <span class="control-label">تصفية حسب النوع:</span>
+                    <select id="genre-filter" onchange="renderLibrary()">
+                        <option value="all">الكل</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div id="library-content" class="library-grid"></div>
+            <div id="library-empty" class="empty-state" style="text-align:center; color:#555; margin-top:50px;">
+                <i class="fa-solid fa-layer-group" style="font-size:3rem; margin-bottom:10px; opacity:0.3;"></i>
+                <p>المكتبة فارغة.</p>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        // --- Configuration & Data ---
+        const db = {
+            genres: ["RPG", "Action", "Puzzle", "Horror", "Sim", "Platformer", "Strategy", "Racing", "Survival"],
+            moods: ["Dark", "Neon", "Fantasy", "Cute", "Gritty", "Surreal", "Peaceful", "Chaotic"],
+            settings: ["Space Station", "Cyber City", "Magic Forest", "Underwater", "Desert", "Ruins", "Dungeon", "Cloud City"],
+            mech: ["Time Travel", "Gravity Switch", "Telekinesis", "Crafting", "Stealth", "Parkour", "Deck Building"],
+            modifiers: ["cinematic lighting", "dramatic shadows", "vibrant colors", "neon glow", "volumetric fog", "digital painting style", "8k resolution", "concept art", "unreal engine 5 render", "intricate details", "glowing particles", "wide angle lens", "dynamic angle"],
+            cameraAngles: ["wide shot", "close up", "isometric view", "first person view", "bird's eye view", "worm's eye view", "side profile", "dramatic angle"]
+        };
+
+        const filterSelect = document.getElementById('genre-filter');
+        db.genres.forEach(g => {
+            const opt = document.createElement('option');
+            opt.value = g;
+            opt.innerText = g;
+            filterSelect.appendChild(opt);
+        });
+
+        // --- State ---
+        let currentIdea = null;
+        let library = JSON.parse(localStorage.getItem('godot_lib_ultimate') || '[]');
+        let soundEnabled = false;
+        let audioCtx = null;
+
+        // --- AUDIO SYSTEM ---
+        function playTone(type) {
+            if (!soundEnabled) return;
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            const now = audioCtx.currentTime;
+
+            if (type === 'hover') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(300, now);
+                gain.gain.setValueAtTime(0.02, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+                osc.start(now); osc.stop(now + 0.05);
+            } 
+            else if (type === 'click') {
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(400, now);
+                gain.gain.setValueAtTime(0.05, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+                osc.start(now); osc.stop(now + 0.1);
+            } 
+            else if (type === 'success') {
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(600, now);
+                osc.frequency.exponentialRampToValueAtTime(1200, now + 0.1);
+                gain.gain.setValueAtTime(0.05, now);
+                gain.gain.linearRampToValueAtTime(0, now + 0.4);
+                osc.start(now); osc.stop(now + 0.4);
+            } 
+            else if (type === 'delete') {
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(150, now);
+                osc.frequency.exponentialRampToValueAtTime(50, now + 0.2);
+                gain.gain.setValueAtTime(0.05, now);
+                gain.gain.linearRampToValueAtTime(0, now + 0.3);
+                osc.start(now); osc.stop(now + 0.3);
+            } 
+            else if (type === 'generate') {
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(200, now);
+                osc.frequency.exponentialRampToValueAtTime(800, now + 0.1);
+                gain.gain.setValueAtTime(0.03, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+                osc.start(now); osc.stop(now + 0.2);
+            }
+            else if (type === 'ding') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(800, now);
+                gain.gain.setValueAtTime(0.03, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+                osc.start(now); osc.stop(now + 0.6);
+            }
+        }
+
+        function toggleSound() {
+            soundEnabled = !soundEnabled;
+            const btn = document.getElementById('sound-btn');
+            const icon = btn.querySelector('i');
+            if(soundEnabled) {
+                btn.classList.add('active-sound');
+                icon.className = 'fa-solid fa-volume-high';
+                playTone('success');
+            } else {
+                btn.classList.remove('active-sound');
+                icon.className = 'fa-solid fa-volume-xmark';
+            }
+        }
+
+        // --- Core Logic ---
+        function getRandom(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+        function generate() {
+            playTone('generate');
+    
+            const g = getRandom(db.genres);
+            const m = getRandom(db.moods);
+            const s = getRandom(db.settings);
+            const mech = getRandom(db.mech);
+            const style = document.getElementById('style-selector').value;
+
+            const text = `لعبة ${g} بطابع ${m} في ${s}. تعتمد على ميكانيكية ${mech}.`;
+    
+            let prompt = `video game concept art, ${g}, ${m} atmosphere, ${s} environment, ${mech} mechanic`;
+            if (style !== 'standard') {
+                prompt += `, ${style} style, high quality, detailed`;
+            } else {
+                prompt += `, realistic, 8k resolution, cinematic lighting`;
+            }
+
+            const mod1 = getRandom(db.modifiers);
+            const mod2 = getRandom(db.modifiers);
+            const cam = getRandom(db.cameraAngles);
+            prompt += `, ${mod1}, ${mod2}, ${cam}`;
+
+            currentIdea = {
+                id: Date.now(),
+                text: text,
+                genre: g,
+                tags: [g, m, mech],
+                image: `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1024&height=576&seed=${Math.random()}&t=${Date.now()}&nologo=true`,
+                style: style
+            };
+
+            updateSaveBtn(false);
+            typeWriter(text);
+            document.getElementById('tags-container').innerHTML = `
+                <span class="tag">${g}</span><span class="tag">${m}</span><span class="tag">${mech}</span>
+                <span class="tag" style="border-color:var(--warn); color:var(--warn)">${style}</span>
+            `;
+
+            const img = document.getElementById('main-image');
+            const grid = document.getElementById('loading-grid');
+            const status = document.getElementById('loading-status');
+            const pulse = document.getElementById('loading-pulse');
+            
+            img.classList.remove('visible');
+            img.src = "";
+            grid.style.display = "block";
+            status.style.display = "block";
+            pulse.style.display = "block";
+            
+            setTimeout(() => { img.src = currentIdea.image; }, 100);
+        }        
+
+        function imageLoaded() {
+            const grid = document.getElementById('loading-grid');
+            const status = document.getElementById('loading-status');
+            const pulse = document.getElementById('loading-pulse');
+            grid.style.display = "none";
+            status.style.display = "none";
+            pulse.style.display = "none";
+            document.getElementById('main-image').classList.add('visible');
+            playTone('ding');
+        }
+
+        function typeWriter(text) {
+            const el = document.getElementById('typewriter-text');
+            el.textContent = '';
+            let i = 0;
+            clearInterval(window.typeInterval);
+            window.typeInterval = setInterval(() => {
+                if (i < text.length) {
+                    el.textContent += text.charAt(i);
+                    if (i % 2 === 0) playTone('click'); 
+                    i++;
+                } else clearInterval(window.typeInterval);
+            }, 15);
+        }
+
+        // --- SAVE FUNCTION ---
+        function saveIdea() {
+            if(!currentIdea) return;
+            
+            // التحقق من التكرار
+            if(library.some(item => item.text === currentIdea.text)) {
+                showToast("محفوظ مسبقاً");
+                return;
+            }
+
+            library.unshift(currentIdea);
+            localStorage.setItem('godot_lib_ultimate', JSON.stringify(library));
+            updateSaveBtn(true);
+            renderLibrary();
+            showToast("تم الحفظ!");
+            playTone('success');
+        }
+
+        function updateSaveBtn(isSaved) {
+            const btn = document.getElementById('save-btn');
+            if(isSaved) {
+                btn.innerHTML = '<i class="fa-solid fa-heart"></i> محفوظ';
+                btn.classList.add('saved');
+            } else {
+                btn.innerHTML = '<i class="fa-regular fa-heart"></i> حفظ';
+                btn.classList.remove('saved');
+            }
+        }
+
+        // --- FIXED DELETE FUNCTION ---
+        function deleteIdea(id, event) {
+            // إيقاف حدث الضغط على الكارت لمنع فتح الفكرة
+            if(event) event.stopPropagation();
+
+            if(!confirm("حذف نهائي؟")) return;
+            
+            playTone('delete');
+            
+            // حذف الفكرة من المصفوفة
+            library = library.filter(item => item.id !== id);
+            
+            // حفظ التغييرات
+            localStorage.setItem('godot_lib_ultimate', JSON.stringify(library));
+            
+            // تحديث الواجهة
+            renderLibrary();
+
+            // إذا كانت الفكرة المحذوفة هي المعروضة حالياً، نحدث زر الحفظ
+            if(currentIdea && currentIdea.id === id) {
+                updateSaveBtn(false);
+            }
+
+            showToast("تم الحذف");
+        }
+
+        function loadIdea(id) {
+            const item = library.find(i => i.id === id);
+            if(item) {
+                currentIdea = item;
+                document.getElementById('style-selector').value = item.style || 'standard';
+                document.getElementById('main-image').src = item.image;
+                typeWriter(item.text);
+                document.getElementById('tags-container').innerHTML = item.tags.map(t => `<span class="tag">${t}</span>`).join('');
+                updateSaveBtn(true);
+                switchTab('generator');
+                playTone('click');
+            }
+        }
+
+        function copyImageLink() {
+            if(!currentIdea) return;
+            navigator.clipboard.writeText(currentIdea.image);
+            showToast("تم نسخ الرابط!");
+            playTone('success');
+        }
+
+        function exportLibrary() {
+            if(library.length === 0) { showToast("المكتبة فارغة!"); return; }
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(library, null, 2));
+            const downloadAnchorNode = document.createElement('a');
+            downloadAnchorNode.setAttribute("href", dataStr);
+            downloadAnchorNode.setAttribute("download", "godot_ideas_" + new Date().toISOString().slice(0,10) + ".json");
+            document.body.appendChild(downloadAnchorNode);
+            downloadAnchorNode.click();
+            downloadAnchorNode.remove();
+            playTone('success');
+            showToast("تم التحميل");
+        }
+
+        function renderLibrary() {
+            const filter = document.getElementById('genre-filter').value;
+            document.getElementById('lib-count').textContent = library.length;
+            const filteredLib = filter === 'all' ? library : library.filter(i => i.genre === filter);
+            const container = document.getElementById('library-content');
+            const empty = document.getElementById('library-empty');
+
+            if(filteredLib.length === 0) { container.innerHTML = ''; empty.style.display = 'block'; return; }
+            empty.style.display = 'none';
+
+            container.innerHTML = filteredLib.map(item => `
+                <div class="lib-card" onclick="loadIdea(${item.id})">
+                    <img src="${item.image}" class="lib-img" loading="lazy">
+                    <div class="lib-overlay">
+                        <div class="lib-genre">${item.tags[0]} • ${item.style}</div>
+                        <div class="lib-title">${item.tags[1]} ${item.tags[2]}</div>
+                        <div class="lib-text">${item.text}</div>
+                        <div class="lib-actions">
+                            <!-- تمرير event هنا ضروري جداً لمنع فتح الفكرة -->
+                            <button class="btn-sm btn-del" onclick="deleteIdea(${item.id}, event)"><i class="fa-solid fa-trash"></i></button>
+                            <button class="btn-sm btn-copy" onclick="event.stopPropagation(); navigator.clipboard.writeText('${item.text}'); showToast('تم النسخ')"><i class="fa-solid fa-copy"></i></button>
+                            <button class="btn-sm btn-load"><i class="fa-solid fa-eye"></i> عرض</button>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function switchTab(tabName) {
+            playTone('click');
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.closest('.tab-btn')?.classList.add('active');
+            document.querySelectorAll('.view-section').forEach(sec => sec.classList.remove('active'));
+            document.getElementById(`view-${tabName}`).classList.add('active');
+            if(tabName === 'library') renderLibrary();
+        }
+
+        function showToast(msg) {
+            const t = document.getElementById('toast');
+            document.getElementById('toast-msg').textContent = msg;
+            t.classList.add('show');
+            setTimeout(() => t.classList.remove('show'), 2000);
+        }
+
+        document.addEventListener('mouseover', (e) => {
+            if(e.target.tagName === 'BUTTON' || e.target.tagName === 'SELECT' || e.target.closest('BUTTON') || e.target.closest('.lib-card')) {
+                playTone('hover');
+            }
+        });
+
+        window.onload = () => { generate(); };
+    </script>
+</body>
+</html>
